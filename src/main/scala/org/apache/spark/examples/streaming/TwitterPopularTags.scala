@@ -31,15 +31,19 @@ import org.apache.spark.streaming.{Seconds, StreamingContext}
  */
 object TwitterPopularTags {
   def main(args: Array[String]) {
-    if (args.length < 4) {
-      System.err.println("Usage: TwitterPopularTags <consumer key> <consumer secret> " +
-        "<access token> <access token secret> [<filters>]")
-      System.exit(1)
-    }
+
+//    if (args.length < 4) {
+//      System.err.println("Usage: TwitterPopularTags <consumer key> <consumer secret> " +
+//        "<access token> <access token secret> [<filters>]")
+//      System.exit(1)
+//    }
 
     StreamingExamples.setStreamingLogLevels()
-
-    val Array(consumerKey, consumerSecret, accessToken, accessTokenSecret) = args.take(4)
+    val consumerKey = "0PriRyEq9t0OtOFruYCJiLIaB"
+    val consumerSecret = "Jf4KvWN9jCYgmHtw7eXHnRDrKS0OIZDhfmrTvbY0lDEPFsj6Bp"
+    val accessToken = "139985187-rfHg3MHAnuyDq91tuuvbHb6GmtFhhWpN4exxjBrd"
+    val accessTokenSecret = "1TYoyn3oyFhjo6OxDEaq3vOOBTPKdFA4plaVFOktOOIGr"
+//    val Array(consumerKey, consumerSecret, accessToken, accessTokenSecret) = args.take(4)
     val filters = args.takeRight(args.length - 4)
 
     // Set the system properties so that Twitter4j library used by twitter stream
@@ -49,7 +53,7 @@ object TwitterPopularTags {
     System.setProperty("twitter4j.oauth.accessToken", accessToken)
     System.setProperty("twitter4j.oauth.accessTokenSecret", accessTokenSecret)
 
-    val sparkConf = new SparkConf().setAppName("TwitterPopularTags")
+    val sparkConf = new SparkConf().setAppName("TwitterPopularTags").setMaster("local[*]")
     val ssc = new StreamingContext(sparkConf, Seconds(2))
     val stream = TwitterUtils.createStream(ssc, None, filters)
 
