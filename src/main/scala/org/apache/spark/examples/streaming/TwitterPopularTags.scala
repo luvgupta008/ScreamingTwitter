@@ -34,12 +34,6 @@ import org.apache.spark.streaming.{Seconds, StreamingContext}
 object TwitterPopularTags {
   def main(args: Array[String]) {
 
-    //    if (args.length < 4) {
-    //      System.err.println("Usage: TwitterPopularTags <consumer key> <consumer secret> " +
-    //        "<access token> <access token secret> [<filters>]")
-    //      System.exit(1)
-    //    }
-
     StreamingExamples.setStreamingLogLevels()
 
     val conf = ConfigFactory.parseFile(new File("config/TwitterScreamer.conf"))
@@ -49,7 +43,6 @@ object TwitterPopularTags {
     val consumerSecret = credentials.getString("consumerSecret")
     val accessToken = credentials.getString("accessToken")
     val accessTokenSecret = credentials.getString("accessTokenSecret")
-    //    val Array(consumerKey, consumerSecret, accessToken, accessTokenSecret) = args.take(4)
     val filters = args.takeRight(args.length - 4)
 
     // Set the system properties so that Twitter4j library used by twitter stream
