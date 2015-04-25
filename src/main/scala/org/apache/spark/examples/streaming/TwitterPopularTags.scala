@@ -17,6 +17,8 @@
 
 package org.apache.spark.examples.streaming
 
+import com.typesafe.config.ConfigFactory
+import java.io.File
 import org.apache.spark.SparkConf
 import org.apache.spark.streaming.twitter._
 import org.apache.spark.streaming.{Seconds, StreamingContext}
@@ -32,18 +34,22 @@ import org.apache.spark.streaming.{Seconds, StreamingContext}
 object TwitterPopularTags {
   def main(args: Array[String]) {
 
-//    if (args.length < 4) {
-//      System.err.println("Usage: TwitterPopularTags <consumer key> <consumer secret> " +
-//        "<access token> <access token secret> [<filters>]")
-//      System.exit(1)
-//    }
+    //    if (args.length < 4) {
+    //      System.err.println("Usage: TwitterPopularTags <consumer key> <consumer secret> " +
+    //        "<access token> <access token secret> [<filters>]")
+    //      System.exit(1)
+    //    }
 
     StreamingExamples.setStreamingLogLevels()
-    val consumerKey = "0PriRyEq9t0OtOFruYCJiLIaB"
-    val consumerSecret = "Jf4KvWN9jCYgmHtw7eXHnRDrKS0OIZDhfmrTvbY0lDEPFsj6Bp"
-    val accessToken = "139985187-rfHg3MHAnuyDq91tuuvbHb6GmtFhhWpN4exxjBrd"
-    val accessTokenSecret = "1TYoyn3oyFhjo6OxDEaq3vOOBTPKdFA4plaVFOktOOIGr"
-//    val Array(consumerKey, consumerSecret, accessToken, accessTokenSecret) = args.take(4)
+
+    val conf = ConfigFactory.parseFile(new File("config/TwitterScreamer.conf"))
+    val credentials = conf.getConfig("oauthcredentials")
+
+    val consumerKey = credentials.getString("consumerKey")
+    val consumerSecret = credentials.getString("consumerSecret")
+    val accessToken = credentials.getString("accessToken")
+    val accessTokenSecret = credentials.getString("accessTokenSecret")
+    //    val Array(consumerKey, consumerSecret, accessToken, accessTokenSecret) = args.take(4)
     val filters = args.takeRight(args.length - 4)
 
     // Set the system properties so that Twitter4j library used by twitter stream
@@ -60,11 +66,11 @@ object TwitterPopularTags {
     val hashTags = stream.flatMap(status => status.getText.split(" ").filter(_.startsWith("#")))
 
     val topCounts60 = hashTags.map((_, 1)).reduceByKeyAndWindow(_ + _, Seconds(60))
-      .map{case (topic, count) => (count, topic)}
+      .map { case (topic, count) => (count, topic)}
       .transform(_.sortByKey(false))
 
     val topCounts10 = hashTags.map((_, 1)).reduceByKeyAndWindow(_ + _, Seconds(10))
-      .map{case (topic, count) => (count, topic)}
+      .map { case (topic, count) => (count, topic)}
       .transform(_.sortByKey(false))
 
 
@@ -72,13 +78,13 @@ object TwitterPopularTags {
     topCounts60.foreachRDD(rdd => {
       val topList = rdd.take(10)
       println("\nPopular topics in last 60 seconds (%s total):".format(rdd.count()))
-      topList.foreach{case (count, tag) => println("%s (%s tweets)".format(tag, count))}
+      topList.foreach { case (count, tag) => println("%s (%s tweets)".format(tag, count))}
     })
 
     topCounts10.foreachRDD(rdd => {
       val topList = rdd.take(10)
       println("\nPopular topics in last 10 seconds (%s total):".format(rdd.count()))
-      topList.foreach{case (count, tag) => println("%s (%s tweets)".format(tag, count))}
+      topList.foreach { case (count, tag) => println("%s (%s tweets)".format(tag, count))}
     })
 
     ssc.start()
