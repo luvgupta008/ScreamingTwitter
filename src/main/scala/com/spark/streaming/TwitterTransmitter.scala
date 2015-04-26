@@ -15,13 +15,15 @@
  * limitations under the License.
  */
 
-package org.apache.spark.examples.streaming
+package com.spark.streaming
 
 import com.typesafe.config.ConfigFactory
 import java.io.File
 import org.apache.spark.SparkConf
+import org.apache.spark.examples.streaming.StreamingExamples
 import org.apache.spark.streaming.twitter._
 import org.apache.spark.streaming.{Seconds, StreamingContext}
+
 
 /**
  * Calculates popular hashtags (topics) over sliding 10 and 60 second windows from a Twitter
@@ -31,7 +33,7 @@ import org.apache.spark.streaming.{Seconds, StreamingContext}
  * Run this on your local machine as
  *
  */
-object TwitterPopularTags {
+object TwitterTransmitter {
   def main(args: Array[String]) {
 
     StreamingExamples.setStreamingLogLevels()
@@ -53,16 +55,12 @@ object TwitterPopularTags {
     System.setProperty("twitter4j.oauth.accessTokenSecret", accessTokenSecret)
 
     val sparkConf = new SparkConf().setAppName("TwitterPopularTags").setMaster("local[*]")
-    val ssc = new StreamingContext(sparkConf, Seconds(2))
+    val ssc = new StreamingContext(sparkConf, Seconds(10))
     val stream = TwitterUtils.createStream(ssc, None, filters)
 
     val hashTags = stream.flatMap(status => status.getText.split(" ").filter(_.startsWith("#")))
 
-    val topCounts60 = hashTags.map((_, 1)).reduceByKeyAndWindow(_ + _, Seconds(60))
-      .map { case (topic, count) => (count, topic)}
-      .transform(_.sortByKey(false))
-
-    val topCounts10 = hashTags.map((_, 1)).reduceByKeyAndWindow(_ + _, Seconds(10))
+    val topCounts60 = hashTags.map((_, 1)).reduceByKeyAndWindow(_ + _, Seconds(300))
       .map { case (topic, count) => (count, topic)}
       .transform(_.sortByKey(false))
 
@@ -71,12 +69,6 @@ object TwitterPopularTags {
     topCounts60.foreachRDD(rdd => {
       val topList = rdd.take(10)
       println("\nPopular topics in last 60 seconds (%s total):".format(rdd.count()))
-      topList.foreach { case (count, tag) => println("%s (%s tweets)".format(tag, count))}
-    })
-
-    topCounts10.foreachRDD(rdd => {
-      val topList = rdd.take(10)
-      println("\nPopular topics in last 10 seconds (%s total):".format(rdd.count()))
       topList.foreach { case (count, tag) => println("%s (%s tweets)".format(tag, count))}
     })
 

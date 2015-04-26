@@ -15,3 +15,6 @@ resolvers ++= Seq(
   "Typesafe repository" at "http://repo.typesafe.com/typesafe/releases/",
   "Akka Repository" at "http://repo.akka.io/releases/"
 )
+
+
+mainClass in (Compile, run) := Some("com.spark.streaming.TwitterTransmitter")
