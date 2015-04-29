@@ -8,7 +8,9 @@ libraryDependencies ++= Seq(
   "org.apache.spark" %% "spark-core" % "1.3.1",
   "org.apache.spark" %% "spark-streaming" % "1.3.1",
   "org.apache.spark" %% "spark-streaming-twitter" % "1.3.1",
-  "com.typesafe" % "config" % "1.2.1"
+  "com.typesafe" % "config" % "1.2.1",
+  "org.elasticsearch" % "elasticsearch-spark_2.10" % "2.1.0.Beta3",
+  "org.json4s" %% "json4s-native" % "3.2.11"
 )
 
 resolvers ++= Seq(

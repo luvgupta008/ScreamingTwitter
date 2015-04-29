@@ -6,6 +6,8 @@ import org.apache.spark.SparkConf
 import org.apache.spark.examples.streaming.StreamingExamples
 import org.apache.spark.streaming.twitter._
 import org.apache.spark.streaming.{Seconds, StreamingContext}
+import org.elasticsearch.spark.rdd.EsSpark
+import org.json4s.JsonDSL._
 
 
 /**
@@ -19,8 +21,8 @@ object TwitterTransmitter {
     StreamingExamples.setStreamingLogLevels()
 
     val conf = ConfigFactory.parseFile(new File("config/TwitterScreamer.conf"))
-    val credentials = conf.getConfig("oauthcredentials")
 
+    val credentials = conf.getConfig("oauthcredentials")
     val consumerKey = credentials.getString("consumerKey")
     val consumerSecret = credentials.getString("consumerSecret")
     val accessToken = credentials.getString("accessToken")
@@ -35,24 +37,66 @@ object TwitterTransmitter {
     System.setProperty("twitter4j.oauth.accessTokenSecret", accessTokenSecret)
 
     val sparkConf = new SparkConf().setAppName("TwitterPopularTags").setMaster("local[*]")
+    sparkConf.set("es.index.auto.create", "true")
+    sparkConf.set("es.nodes", "localhost")
+    sparkConf.set("es.port", "9200")
+
     val ssc = new StreamingContext(sparkConf, Seconds(10))
     val stream = TwitterUtils.createStream(ssc, None, filters)
 
-    val hashTags = stream.flatMap(status => status.getText.split(" ").filter(_.startsWith("#")))
 
-    val topCounts60 = hashTags.map((_, 1)).reduceByKeyAndWindow(_ + _, Seconds(300))
-      .map { case (topic, count) => (count, topic)}
-      .transform(_.sortByKey(false))
+    val tweetMap = stream.map(status => {
+
+      def getValStr(x: Any): String = {
+        if (x != null && !x.toString.isEmpty) x.toString + "|" else "|"
+      }
 
 
-    // Print popular hashtags
-    topCounts60.foreachRDD(rdd => {
-      val topList = rdd.take(10)
-      println("\nPopular topics in last 60 seconds (%s total):".format(rdd.count()))
-      topList.foreach { case (count, tag) => println("%s (%s tweets)".format(tag, count))}
+      val tweetRecord =
+        getValStr(status.getUser.getId) +
+          getValStr(status.getUser.getScreenName) +
+          getValStr(status.getUser.getFriendsCount) +
+          getValStr(status.getUser.getFavouritesCount) +
+          getValStr(status.getUser.getFollowersCount) +
+          getValStr(status.getUser.getLang) +
+          getValStr(status.getUser.getLocation) +
+          getValStr(status.getUser.getName) +
+          getValStr(status.getId) +
+          getValStr(status.getCreatedAt) +
+          getValStr(status.getGeoLocation) +
+          getValStr(status.getPlace) +
+          getValStr(status.getText) +
+          getValStr(status.getInReplyToUserId) +
+          getValStr(status.getPlace) +
+          getValStr(status.getRetweetCount) +
+          getValStr(status.getRetweetedStatus) +
+          getValStr(status.getSource) +
+          getValStr(status.getInReplyToScreenName) +
+          getValStr(status.getText)
+
+      val tweetMap =
+        ("UserID" -> status.getUser.getId) ~
+          ("UserScreenName" -> status.getUser.getScreenName) ~
+          ("UserFriendsCount" -> status.getUser.getFriendsCount) ~
+          ("UserFavouritesCount" -> status.getUser.getFavouritesCount) ~ {
+          if (status.getGeoLocation != null)
+            ("Geo_Latitude" -> status.getGeoLocation.getLatitude) ~ ("Geo_Longitude" -> status.getGeoLocation.getLongitude)
+          else
+            ("Geo_Latitude" -> "") ~ ("Geo_Longitude" -> "")
+        } ~
+          ("UserLang" -> status.getUser.getLang) ~
+          ("UserLocation" -> status.getUser.getLocation) ~
+          ("UserName" -> status.getUser.getName) ~
+          ("Text" -> status.getText) ~
+          ("CreatedAt" -> status.getCreatedAt.toString)
+
+      tweetMap.values
     })
 
-    ssc.start()
-    ssc.awaitTermination()
+    tweetMap.map(status => List()).print
+    tweetMap.foreachRDD { tweets => EsSpark.saveToEs(tweets, "spark/docs") }
+
+    ssc.start
+    ssc.awaitTermination
   }
 }
