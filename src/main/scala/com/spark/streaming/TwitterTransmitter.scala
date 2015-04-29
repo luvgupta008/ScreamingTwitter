@@ -4,7 +4,7 @@ import com.typesafe.config.ConfigFactory
 import java.io.File
 import org.apache.spark.SparkConf
 import org.apache.spark.examples.streaming.StreamingExamples
-import org.apache.spark.streaming.twitter._
+import org.apache.spark.streaming.twitter.TwitterUtils
 import org.apache.spark.streaming.{Seconds, StreamingContext}
 import org.elasticsearch.spark.rdd.EsSpark
 import org.json4s.JsonDSL._
@@ -78,7 +78,8 @@ object TwitterTransmitter {
         ("UserID" -> status.getUser.getId) ~
           ("UserScreenName" -> status.getUser.getScreenName) ~
           ("UserFriendsCount" -> status.getUser.getFriendsCount) ~
-          ("UserFavouritesCount" -> status.getUser.getFavouritesCount) ~ {
+          ("UserFavouritesCount" -> status.getUser.getFavouritesCount)
+          ("UserFollowersCount" -> status.getUser.getFollowersCount) ~ {
           if (status.getGeoLocation != null)
             ("Geo_Latitude" -> status.getGeoLocation.getLatitude) ~ ("Geo_Longitude" -> status.getGeoLocation.getLongitude)
           else
@@ -90,11 +91,12 @@ object TwitterTransmitter {
           ("Text" -> status.getText) ~
           ("CreatedAt" -> status.getCreatedAt.toString)
 
+
       tweetMap.values
     })
 
     tweetMap.map(status => List()).print
-    tweetMap.foreachRDD { tweets => EsSpark.saveToEs(tweets, "spark/docs") }
+    tweetMap.foreachRDD { tweets => EsSpark.saveToEs(tweets, "spark/docs", Map("es.mapping.timestamp","CreatedAt")) }
 
     ssc.start
     ssc.awaitTermination
