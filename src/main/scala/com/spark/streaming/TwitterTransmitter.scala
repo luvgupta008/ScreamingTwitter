@@ -12,7 +12,7 @@ import org.json4s.JsonDSL._
 
 /**
  *
- * Run this on your local machine as
+ * Sends relevant key-value pairs from the Tweets and pass them to ElasticSearch
  *
  */
 object TwitterTransmitter {
