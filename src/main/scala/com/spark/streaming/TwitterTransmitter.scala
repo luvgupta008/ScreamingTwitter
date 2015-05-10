@@ -8,6 +8,7 @@ import org.apache.spark.streaming.twitter.TwitterUtils
 import org.apache.spark.streaming.{Seconds, StreamingContext}
 import org.elasticsearch.spark.rdd.EsSpark
 import org.json4s.JsonDSL._
+import java.text.SimpleDateFormat
 
 
 /**
@@ -27,7 +28,7 @@ object TwitterTransmitter {
     val consumerSecret = credentials.getString("consumerSecret")
     val accessToken = credentials.getString("accessToken")
     val accessTokenSecret = credentials.getString("accessTokenSecret")
-    val filters = List()
+    val filters = List("beyonce")
 
     // Set the system properties so that Twitter4j library used by twitter stream
     // can use them to generat OAuth credentials
@@ -41,6 +42,7 @@ object TwitterTransmitter {
     sparkConf.set("es.nodes", "localhost")
     sparkConf.set("es.port", "9200")
 
+
     val ssc = new StreamingContext(sparkConf, Seconds(10))
     val stream = TwitterUtils.createStream(ssc, None, filters)
 
@@ -50,6 +52,8 @@ object TwitterTransmitter {
       def getValStr(x: Any): String = {
         if (x != null && !x.toString.isEmpty) x.toString + "|" else "|"
       }
+
+      val formatter = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZZ")
 
 
       val tweetRecord =
@@ -78,7 +82,7 @@ object TwitterTransmitter {
         ("UserID" -> status.getUser.getId) ~
           ("UserScreenName" -> status.getUser.getScreenName) ~
           ("UserFriendsCount" -> status.getUser.getFriendsCount) ~
-          ("UserFavouritesCount" -> status.getUser.getFavouritesCount)
+          ("UserFavouritesCount" -> status.getUser.getFavouritesCount) ~
           ("UserFollowersCount" -> status.getUser.getFollowersCount) ~ {
           if (status.getGeoLocation != null)
             ("Geo_Latitude" -> status.getGeoLocation.getLatitude) ~ ("Geo_Longitude" -> status.getGeoLocation.getLongitude)
@@ -89,14 +93,30 @@ object TwitterTransmitter {
           ("UserLocation" -> status.getUser.getLocation) ~
           ("UserName" -> status.getUser.getName) ~
           ("Text" -> status.getText) ~
-          ("CreatedAt" -> status.getCreatedAt.toString)
+          ("CreatedAt" -> formatter.format(status.getCreatedAt.getTime)) ~ {
+          if (status.getPlace != null) {
+            if (status.getPlace.getName != null)
+              ("PlaceName" -> status.getPlace.getName)
+            else
+              ("PlaceName" -> "")
+          } ~ {
+            if (status.getPlace.getCountry != null)
+              ("PlaceCountry" -> status.getPlace.getCountry)
+            else
+              ("PlaceCountry" -> "")
+          }
+          else
+            ("PlaceName" -> "") ~
+            ("PlaceCountry" -> "")
+        }
 
+      //~("HashTags" -> status.getText.split(" ").filter(_.startsWith("#")).toList)
 
       tweetMap.values
     })
 
     tweetMap.map(status => List()).print
-    tweetMap.foreachRDD { tweets => EsSpark.saveToEs(tweets, "spark/docs", Map("es.mapping.timestamp","CreatedAt")) }
+    tweetMap.foreachRDD { tweets => EsSpark.saveToEs(tweets, "spark/tweets", Map("es.mapping.timestamp" -> "CreatedAt")) }
 
     ssc.start
     ssc.awaitTermination
