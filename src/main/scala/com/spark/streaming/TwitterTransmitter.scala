@@ -3,7 +3,6 @@ package com.spark.streaming
 import com.typesafe.config.ConfigFactory
 import java.io.File
 import org.apache.spark.SparkConf
-import org.apache.spark.examples.streaming.StreamingExamples
 import org.apache.spark.streaming.twitter.TwitterUtils
 import org.apache.spark.streaming.{Seconds, StreamingContext}
 import org.elasticsearch.spark.rdd.EsSpark
@@ -20,7 +19,7 @@ import org.joda.time.{DateTime, Days}
 object TwitterTransmitter {
   def main(args: Array[String]) {
 
-    StreamingExamples.setStreamingLogLevels()
+    StreamingLogger.setStreamingLogLevels()
 
     val conf = ConfigFactory.parseFile(new File("config/TwitterScreamer.conf"))
 
@@ -122,10 +121,10 @@ object TwitterTransmitter {
 
     })
 
-    tweetMap.print
+//    tweetMap.print
 
-//    tweetMap.map(s => List("Tweet Extracted")).print
- //   tweetMap.foreachRDD { tweets => EsSpark.saveToEs(tweets, "spark/tweets", Map("es.mapping.timestamp" -> "StatusCreatedAt")) }
+    tweetMap.map(s => List("Tweet Extracted")).print
+    tweetMap.foreachRDD { tweets => EsSpark.saveToEs(tweets, "spark/tweets", Map("es.mapping.timestamp" -> "StatusCreatedAt")) }
 
     ssc.start
     ssc.awaitTermination
