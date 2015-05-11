@@ -9,6 +9,7 @@ import org.apache.spark.streaming.{Seconds, StreamingContext}
 import org.elasticsearch.spark.rdd.EsSpark
 import org.json4s.JsonDSL._
 import java.text.SimpleDateFormat
+import org.joda.time.{DateTime, Days}
 
 
 /**
@@ -28,7 +29,7 @@ object TwitterTransmitter {
     val consumerSecret = credentials.getString("consumerSecret")
     val accessToken = credentials.getString("accessToken")
     val accessTokenSecret = credentials.getString("accessTokenSecret")
-    val filters = List("beyonce")
+    val filters = List()
 
     // Set the system properties so that Twitter4j library used by twitter stream
     // can use them to generat OAuth credentials
@@ -46,44 +47,20 @@ object TwitterTransmitter {
     val ssc = new StreamingContext(sparkConf, Seconds(10))
     val stream = TwitterUtils.createStream(ssc, None, filters)
 
-
     val tweetMap = stream.map(status => {
-
-      def getValStr(x: Any): String = {
-        if (x != null && !x.toString.isEmpty) x.toString + "|" else "|"
-      }
 
       val formatter = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZZ")
 
 
-      val tweetRecord =
-        getValStr(status.getUser.getId) +
-          getValStr(status.getUser.getScreenName) +
-          getValStr(status.getUser.getFriendsCount) +
-          getValStr(status.getUser.getFavouritesCount) +
-          getValStr(status.getUser.getFollowersCount) +
-          getValStr(status.getUser.getLang) +
-          getValStr(status.getUser.getLocation) +
-          getValStr(status.getUser.getName) +
-          getValStr(status.getId) +
-          getValStr(status.getCreatedAt) +
-          getValStr(status.getGeoLocation) +
-          getValStr(status.getPlace) +
-          getValStr(status.getText) +
-          getValStr(status.getInReplyToUserId) +
-          getValStr(status.getPlace) +
-          getValStr(status.getRetweetCount) +
-          getValStr(status.getRetweetedStatus) +
-          getValStr(status.getSource) +
-          getValStr(status.getInReplyToScreenName) +
-          getValStr(status.getText)
-
       val tweetMap =
         ("UserID" -> status.getUser.getId) ~
+          ("UserDescription" -> status.getUser.getDescription) ~
           ("UserScreenName" -> status.getUser.getScreenName) ~
           ("UserFriendsCount" -> status.getUser.getFriendsCount) ~
           ("UserFavouritesCount" -> status.getUser.getFavouritesCount) ~
-          ("UserFollowersCount" -> status.getUser.getFollowersCount) ~ {
+          ("UserFollowersCount" -> status.getUser.getFollowersCount) ~
+          ("UserFollowersRatio" -> status.getUser.getFollowersCount.toFloat / status.getUser.getFriendsCount.toFloat) ~
+          {
           if (status.getGeoLocation != null)
             ("Geo_Latitude" -> status.getGeoLocation.getLatitude) ~ ("Geo_Longitude" -> status.getGeoLocation.getLongitude)
           else
@@ -91,9 +68,14 @@ object TwitterTransmitter {
         } ~
           ("UserLang" -> status.getUser.getLang) ~
           ("UserLocation" -> status.getUser.getLocation) ~
+          ("UserVerification" -> status.getUser.isVerified) ~
           ("UserName" -> status.getUser.getName) ~
+          ("UserStatusCount" -> status.getUser.getStatusesCount) ~
+          ("UserCreated" -> formatter.format(status.getUser.getCreatedAt.getTime)) ~
           ("Text" -> status.getText) ~
-          ("CreatedAt" -> formatter.format(status.getCreatedAt.getTime)) ~ {
+          ("TextLength" -> status.getText.length) ~
+          ("HashTags" -> status.getText.split(" ").filter(_.startsWith("#")).mkString(" ")) ~
+          ("StatusCreatedAt" -> formatter.format(status.getCreatedAt.getTime)) ~ {
           if (status.getPlace != null) {
             if (status.getPlace.getName != null)
               ("PlaceName" -> status.getPlace.getName)
@@ -107,16 +89,39 @@ object TwitterTransmitter {
           }
           else
             ("PlaceName" -> "") ~
-            ("PlaceCountry" -> "")
+              ("PlaceCountry" -> "")
         }
 
-      //~("HashTags" -> status.getText.split(" ").filter(_.startsWith("#")).toList)
 
-      tweetMap.values
+      def spamDetector(tweet: Map[String, Any]): Boolean = {
+        {
+          Days.daysBetween(new DateTime(formatter.parse(tweet.get("UserCreated").mkString).getTime),
+            DateTime.now).getDays > 1
+        } & {
+          tweet.get("UserStatusCount").mkString.toInt > 50
+        } & {
+          tweet.get("UserFollowersRatio").mkString.toFloat > 0.01
+        } & {
+          tweet.get("UserDescription").mkString.length > 20
+        } & {
+          tweet.get("Text").mkString.split(" ").filter(_.startsWith("#")).length < 5
+        } & {
+          tweet.get("TextLength").mkString.toInt > 20
+        } & {
+          val filters = List("rt and follow","rt & follow","rt+follow","follow and rt","follow & rt","follow+rt")
+          !filters.exists(tweet.get("Text").mkString.toLowerCase.contains)
+        }
+      }
+
+      spamDetector(tweetMap.values) match {
+        case true => tweetMap.values.+("spam" -> false)
+        case _ => tweetMap.values.+("spam" -> true)
+      }
+
     })
 
-    tweetMap.map(status => List()).print
-    tweetMap.foreachRDD { tweets => EsSpark.saveToEs(tweets, "spark/tweets", Map("es.mapping.timestamp" -> "CreatedAt")) }
+    tweetMap.map(s => List("Tweet Extracted")).print
+    tweetMap.foreachRDD { tweets => EsSpark.saveToEs(tweets, "spark/tweets", Map("es.mapping.timestamp" -> "StatusCreatedAt")) }
 
     ssc.start
     ssc.awaitTermination
