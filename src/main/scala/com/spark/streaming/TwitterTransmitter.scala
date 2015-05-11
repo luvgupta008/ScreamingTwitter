@@ -29,7 +29,9 @@ object TwitterTransmitter {
     val consumerSecret = credentials.getString("consumerSecret")
     val accessToken = credentials.getString("accessToken")
     val accessTokenSecret = credentials.getString("accessTokenSecret")
-    val filters = List()
+    val filters = if (args.length == 0) List() else args.toList
+
+    println("Filters being used: " + filters.mkString(","))
 
     // Set the system properties so that Twitter4j library used by twitter stream
     // can use them to generat OAuth credentials
@@ -120,8 +122,10 @@ object TwitterTransmitter {
 
     })
 
-    tweetMap.map(s => List("Tweet Extracted")).print
-    tweetMap.foreachRDD { tweets => EsSpark.saveToEs(tweets, "spark/tweets", Map("es.mapping.timestamp" -> "StatusCreatedAt")) }
+    tweetMap.print
+
+//    tweetMap.map(s => List("Tweet Extracted")).print
+ //   tweetMap.foreachRDD { tweets => EsSpark.saveToEs(tweets, "spark/tweets", Map("es.mapping.timestamp" -> "StatusCreatedAt")) }
 
     ssc.start
     ssc.awaitTermination
