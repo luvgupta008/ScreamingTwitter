@@ -66,7 +66,6 @@ object TwitterTransmitter {
     // Create a DStream the gets streaming data from Twitter with the filters provided
     val stream = TwitterUtils.createStream(ssc, None, filters)
 
-    stream.print
     // Process each tweet in a batch
     val tweetMap = stream.map(status => {
 
