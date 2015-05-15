@@ -55,7 +55,8 @@ object TwitterTransmitter {
     // Initialize a SparkConf with all available cores
     val sparkConf = new SparkConf().setAppName("TwitterPopularTags").setMaster("local[*]")
     // Automatically create index in Elasticsearch
-    sparkConf.set("es.index.auto.create", "true")
+    sparkConf.set("es.resource","sparksender/tweets")
+    sparkConf.set("es.index.auto.create", "false")
     // Define the location of Elasticsearch cluster
     sparkConf.set("es.nodes", "localhost")
     sparkConf.set("es.port", "9200")
@@ -65,6 +66,7 @@ object TwitterTransmitter {
     // Create a DStream the gets streaming data from Twitter with the filters provided
     val stream = TwitterUtils.createStream(ssc, None, filters)
 
+    stream.print
     // Process each tweet in a batch
     val tweetMap = stream.map(status => {
 
@@ -153,7 +155,7 @@ object TwitterTransmitter {
     tweetMap.map(s => List("Tweet Extracted")).print
 
     // Each batch is saved to Elasticsearch with StatusCreatedAt as the default time dimension
-    tweetMap.foreachRDD { tweets => EsSpark.saveToEs(tweets, "spark/tweets", Map("es.mapping.timestamp" -> "StatusCreatedAt")) }
+    tweetMap.foreachRDD { tweets => EsSpark.saveToEs(tweets, "sparksender/tweets", Map("es.mapping.timestamp" -> "StatusCreatedAt")) }
 
     ssc.start  // Start the computation
     ssc.awaitTermination  // Wait for the computation to terminate
