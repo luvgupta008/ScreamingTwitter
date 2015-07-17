@@ -2,8 +2,8 @@ release-notes
 logs
 project/project
 project/target
-TwitterScreamer.conf
-config/TwitterScreamer.conf
+src/main/resources/TwitterScreamer.conf
+src/main/resources/TwitterScreamer.conf
 target
 lib_managed
 src_managed

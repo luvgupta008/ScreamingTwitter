@@ -30,7 +30,7 @@ object TwitterTransmitter {
     StreamingLogger.setStreamingLogLevels()
 
     // Read configurations from a config file
-    val conf = ConfigFactory.parseFile(new File("config/TwitterScreamer.conf"))
+    val conf = ConfigFactory.load()
 
     // Get the OAuth credentials from the configuration file
     val credentials = conf.getConfig("oauthcredentials")
@@ -70,7 +70,16 @@ object TwitterTransmitter {
     val tweetMap = stream.map(status => {
 
       // Defined a DateFormat to convert date Time provided by Twitter to a format understandable by Elasticsearch
-      val formatter = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZZ")
+
+    val formatter = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZZ")
+
+    def checkObj (x : Any) : String  = {
+        x match {
+          case i:String => i
+          case _ => ""
+        }
+      }
+
 
       // Creating a JSON using json4s.JSONDSL with fields from the tweet and calculated fields
       val tweetMap =
@@ -81,12 +90,9 @@ object TwitterTransmitter {
           ("UserFavouritesCount" -> status.getUser.getFavouritesCount) ~
           ("UserFollowersCount" -> status.getUser.getFollowersCount) ~
           // Ration is calculated as the number of followers divided by number of people followed
-          ("UserFollowersRatio" -> status.getUser.getFollowersCount.toFloat / status.getUser.getFriendsCount.toFloat) ~ {
-          if (status.getGeoLocation != null)
-            ("Geo_Latitude" -> status.getGeoLocation.getLatitude) ~ ("Geo_Longitude" -> status.getGeoLocation.getLongitude)
-          else
-            ("Geo_Latitude" -> "") ~ ("Geo_Longitude" -> "")
-        } ~
+          ("UserFollowersRatio" -> status.getUser.getFollowersCount.toFloat / status.getUser.getFriendsCount.toFloat) ~
+          ("Geo_Latitude" -> checkObj(status.getGeoLocation.getLatitude)) ~
+          ("Geo_Longitude" -> checkObj(status.getGeoLocation.getLongitude)) ~
           ("UserLang" -> status.getUser.getLang) ~
           ("UserLocation" -> status.getUser.getLocation) ~
           ("UserVerification" -> status.getUser.isVerified) ~
@@ -98,22 +104,9 @@ object TwitterTransmitter {
           ("TextLength" -> status.getText.length) ~
           //Tokenized the tweet message and then filtered only words starting with #
           ("HashTags" -> status.getText.split(" ").filter(_.startsWith("#")).mkString(" ")) ~
-          ("StatusCreatedAt" -> formatter.format(status.getCreatedAt.getTime)) ~ {
-          if (status.getPlace != null) {
-            if (status.getPlace.getName != null)
-              ("PlaceName" -> status.getPlace.getName)
-            else
-              ("PlaceName" -> "")
-          } ~ {
-            if (status.getPlace.getCountry != null)
-              ("PlaceCountry" -> status.getPlace.getCountry)
-            else
-              ("PlaceCountry" -> "")
-          }
-          else
-            ("PlaceName" -> "") ~
-              ("PlaceCountry" -> "")
-        }
+          ("StatusCreatedAt" -> formatter.format(status.getCreatedAt.getTime)) ~
+          ("PlaceName" -> checkObj(status.getPlace.getName)) ~
+          ("PlaceCountry" -> checkObj(status.getPlace.getCountry))
 
       // This function takes Map of tweet data and returns true if the message is not a spam
       def spamDetector(tweet: Map[String, Any]): Boolean = {
